@@ -1,147 +1,130 @@
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ImageDownloader extends JFrame {
 
-    private JTextField urlTextField;
+    private List<JTextField> urlFields;
     private JButton downloadButton;
-    private JTextArea statusTextArea;
-    private ExecutorService executorService;
+    private JTextArea logArea;
+    private ExecutorService executor;
 
     public ImageDownloader() {
-        super("Image Downloader");
+        setTitle("Multithreaded Image Downloader");
+        setSize(600, 400);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
 
-        urlTextField = new JTextField(30);
+        urlFields = new ArrayList<>();
         downloadButton = new JButton("Download");
-        statusTextArea = new JTextArea(10, 30);
-        executorService = Executors.newFixedThreadPool(5);
+        logArea = new JTextArea();
+        logArea.setEditable(false);
 
-        setLayout(new FlowLayout());
+        // Add components to the frame
+        JPanel inputPanel = new JPanel(new BorderLayout());
+        inputPanel.add(new JLabel("Enter URLs "), BorderLayout.NORTH);
 
-        add(new JLabel("Enter URL:"));
-        add(urlTextField);
-        add(downloadButton);
-        add(new JScrollPane(statusTextArea));
+        // Initial text fields
+        JPanel urlFieldsPanel = new JPanel(new GridLayout(3, 1)); 
 
+        for (int i = 0; i < 3; i++) { 
+            JTextField textField = new JTextField();
+            urlFields.add(textField);
+            urlFieldsPanel.add(textField);
+        }
+
+        inputPanel.add(urlFieldsPanel, BorderLayout.CENTER);
+        inputPanel.add(downloadButton, BorderLayout.SOUTH);
+
+        JScrollPane scrollPane = new JScrollPane(logArea);
+
+        add(inputPanel, BorderLayout.NORTH);
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Initialize thread pool with fixed number of threads
+        executor = Executors.newFixedThreadPool(3);
+
+        // Add action listener to the download button
         downloadButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String url = urlTextField.getText();
-                if (!url.isEmpty()) {
-                    downloadImagesAsync(url);
-                }
+                downloadImagesAsync();
             }
         });
-
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(400, 300);
-        setLocationRelativeTo(null);
-        setVisible(true);
     }
 
-    private void downloadImagesAsync(String url) {
-        statusTextArea.setText("");
-        SwingWorker<Void, String> worker = new SwingWorker<Void, String>() {
-            @Override
-            protected Void doInBackground() {
-                try {
-                    List<String> imageUrls = getImageUrlsFromUrl(url);
-                    CountDownLatch latch = new CountDownLatch(imageUrls.size());
-
-                    for (String imageUrl : imageUrls) {
-                        // Check if executorService is still running
-                        if (!executorService.isShutdown()) {
-                            executorService.submit(() -> {
-                                try {
-                                    downloadImage(imageUrl);
-                                } finally {
-                                    latch.countDown();
-                                }
-                            });
-                        }
-                    }
-
-                    latch.await();
-
-                } catch (Exception e) {
-                    publish("Error: " + e.getMessage());
-                }
-                return null;
+    private void downloadImagesAsync() {
+        for (JTextField urlField : urlFields) {
+            String url = urlField.getText().trim();
+            if (!url.isEmpty()) {
+                downloadImage(url);
             }
-
-            @Override
-            protected void process(List<String> chunks) {
-                for (String message : chunks) {
-                    statusTextArea.append(message + "\n");
-                }
-            }
-
-            @Override
-            protected void done() {
-                executorService.submit(() -> {
-                    // Check if executorService is still running
-                    if (!executorService.isShutdown()) {
-                        executorService.shutdown();
-
-                        try {
-                            // Attempt to await termination for a reasonable amount of time
-                            if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-                                // If termination takes too long, force shutdown
-                                executorService.shutdownNow();
-                            }
-                        } catch (InterruptedException e) {
-                            executorService.shutdownNow();
-                            Thread.currentThread().interrupt();
-                        }
-
-                        // Recreate the executorService for future downloads
-                        executorService = Executors.newFixedThreadPool(5);
-                    }
-                });
-            }
-        };
-
-        worker.execute();
-    }
-
-    private List<String> getImageUrlsFromUrl(String url) throws IOException {
-        // Implement logic to extract image URLs from the given URL
-        // For simplicity, you can use a library like Jsoup for HTML parsing
-        // Return a List<String> containing image URLs
-        return List.of("https://example.com/image1.jpg", "https://example.com/image2.jpg");
-    }
-
-    public void downloadImage(String imageUrl) {
-        try {
-            @SuppressWarnings("deprecation")
-            URL url = new URL(imageUrl);
-            BufferedImage image = ImageIO.read(url);
-
-            if (image != null) {
-                // Implement logic to save the image or update UI with the downloaded image
-                // For simplicity, you can just print the progress and completion percentage
-                System.out.println("Downloaded: " + imageUrl);
-            } else {
-                publish("Error: Unable to read image from URL - " + imageUrl);
-            }
-        } catch (IOException e) {
-            publish("Error downloading image: " + e.getMessage());
         }
     }
 
-    private void publish(String string) {
-        SwingUtilities.invokeLater(() -> statusTextArea.append(string + "\n"));
+    private void downloadImage(String imageUrl) {
+        executor.submit(new ImageDownloaderTask(imageUrl));
+    }
+
+    private class ImageDownloaderTask implements Runnable {
+
+        private String imageUrl;
+
+        public ImageDownloaderTask(String imageUrl) {
+            this.imageUrl = imageUrl;
+        }
+
+        @Override
+        public void run() {
+            try {
+                @SuppressWarnings("deprecation")
+                URL url = new URL(imageUrl);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    InputStream inputStream = connection.getInputStream();
+
+                    // Extract filename from URL
+                    String fileName = imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+                    File outputFile = new File(fileName);
+                    FileOutputStream outputStream = new FileOutputStream(outputFile);
+
+                    byte[] buffer = new byte[1024];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+
+                    inputStream.close();
+                    outputStream.close();
+                    log("Downloaded: " + fileName);
+                } else {
+                    log("Error downloading image from " + imageUrl + ": HTTP error code " + responseCode);
+                }
+            } catch (IOException e) {
+                log("Error downloading image from " + imageUrl + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private void log(String message) {
+        SwingUtilities.invokeLater(() -> {
+            logArea.append(message + "\n");
+        });
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new ImageDownloader());
+        SwingUtilities.invokeLater(() -> {
+            new ImageDownloader().setVisible(true);
+        });
     }
 }
