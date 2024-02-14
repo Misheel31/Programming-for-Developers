@@ -1,58 +1,83 @@
-import java.util.PriorityQueue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
 
-class Node {
-    int key;
-    double diff;
-    Node left, right;
+class TreeNode {
+    int val;
+    TreeNode left, right;
 
-    public Node(int key) {
-        this.key = key;
-        left = right = null;
+    public TreeNode(int val) {
+        this.val = val;
+        this.left = this.right = null;
     }
 }
 
 public class BinarySearchTree {
 
-    static void closest(Node root, double k, int x) {
-        if (root == null) {
-            return ;
+    public static List<Integer> closestValues(TreeNode root, double target, int x) {
+        List<Integer> result = new ArrayList<>();
+        Stack<TreeNode> stack = new Stack<>();
+        TreeNode current = root;
+
+        // In-order traversal to create a sorted list of values
+        while (current != null || !stack.isEmpty()) {
+            while (current != null) {
+                stack.push(current);
+                current = current.left;
+            }
+
+            current = stack.pop();
+            result.add(current.val);
+            current = current.right;
         }
 
-        closest(root.right, k, x);
-        if (closestValues.size() == x) {
-            if (closestValues.peek().diff > Math.abs(k - root.key)) {
-                closestValues.poll();
-                closestValues.add(root);
+        // Find x closest values to the target in the sorted list
+        int leftIndex = 0, rightIndex = 0;
+        for (int i = 0; i < result.size(); i++) {
+            if (result.get(i) <= target) {
+                leftIndex = i;
+            } else {
+                rightIndex = i;
+                break;
             }
         }
 
-        else {
-            closestValues.add(root);
+        while (x > 0) {
+            if (leftIndex >= 0 && rightIndex < result.size()) {
+                double leftDiff = Math.abs(result.get(leftIndex) - target);
+                double rightDiff = Math.abs(result.get(rightIndex) - target);
+
+                if (leftDiff <= rightDiff) {
+                    result.remove(rightIndex);
+                } else {
+                    result.remove(leftIndex);
+                    leftIndex--;
+                }
+            } else if (leftIndex >= 0) {
+                result.remove(leftIndex);
+                leftIndex--;
+            } else if (rightIndex < result.size()) {
+                result.remove(rightIndex);
+            }
+
+            x--;
         }
 
-        root.diff = Math.abs(k - root.key);
-
-        closest(root.left, k, x);
+        return result;
     }
 
-    static PriorityQueue<Node> closestValues = new PriorityQueue<>((a, b) -> {
-        return (int) (a.diff - b.diff);
-    });
-
     public static void main(String[] args) {
-        Node root = new Node(4);
-        root.left = new Node(2);
-        root.right = new Node(5);
-        root.left.left = new Node(1);
-        root.left.right = new Node(3);
+    
+        TreeNode root = new TreeNode(4);
+        root.left = new TreeNode(2);
+        root.right = new TreeNode(5);
+        root.left.left = new TreeNode(1);
+        root.left.right = new TreeNode(3);
 
-        double k = 3.8;
+        double target = 3.8;
         int x = 2;
 
-        closest(root, k, x);
-
-        for (int i = 0; i < x; i++) {
-            System.out.print(closestValues.poll().key + " ");
-        }
+        List<Integer> closestValues = closestValues(root, target, x);
+        System.out.println("Closest values to " + target + ": " + closestValues);
     }
 }

@@ -3,7 +3,7 @@ import java.util.PriorityQueue;
 public class Spaceship {
 
     public static int minTimeToBuildEngines(int[] engines, int splitCost) {
-        // Create a min heap to store the time needed to build each engine
+        // Create a minimum heap to store the time to build each engine
         PriorityQueue<Integer> minHeap = new PriorityQueue<>();
         int totalTime = 0;
 
