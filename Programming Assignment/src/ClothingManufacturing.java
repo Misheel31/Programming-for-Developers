@@ -21,7 +21,7 @@ public class ClothingManufacturing {
     }
 
     public static void main(String[] args) {
-        int[] dresses = {2, 1, 3, 0, 2};
+        int[] dresses = { 1, 0, 5};
         int result = minMovesToEqualize(dresses);
 
         System.out.println("Minimum moves needed: " + result);
