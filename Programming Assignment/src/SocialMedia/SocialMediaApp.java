@@ -52,6 +52,11 @@ class User {
 
     public void commentOnPost(String post, String comment) {
     }
+
+    public List<String> recommendContent(SocialNetworkGraph socialGraph) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'recommendContent'");
+    }
 }
 
 class SocialNetworkGraph {
