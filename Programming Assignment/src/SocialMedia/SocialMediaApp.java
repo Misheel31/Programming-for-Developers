@@ -424,10 +424,12 @@ public class SocialMediaApp extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new SocialMediaApp().setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            try {
+                SocialMediaApp socialMediaApp = new SocialMediaApp();
+                socialMediaApp.setVisible(true);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
     }
