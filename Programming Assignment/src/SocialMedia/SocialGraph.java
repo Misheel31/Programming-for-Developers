@@ -1,76 +1,13 @@
 package SocialMedia;
 
+import javax.swing.*;
+import java.sql.*;
 import java.util.*;
 
-class User {
-    String username;
-    Set<User> following;
-    List<String> posts;
-    Map<String, Integer> postLikes;
-
-    public User(String username) {
-        this.username = username;
-        this.following = new HashSet<>();
-        this.posts = new ArrayList<>();
-        this.postLikes = new HashMap<>();
-    }
-
-    public void addPost(String content) {
-        posts.add(content);
-        postLikes.put(content, 0);
-    }
-
-    public void follow(User user) {
-        following.add(user);
-    }
-
-    public List<String> getPosts() {
-        return posts;
-    }
-
-    public Set<User> getFollowing() {
-        return following;
-    }
-
-    public Map<String, Integer> getPostLikes() {
-        return postLikes;
-    }
-
-    // Recommendation algorithm with enhanced factors
-    public List<String> recommendContent(SocialNetworkGraph socialGraph) {
-        List<String> recommendations = new ArrayList<>();
-        Set<User> visited = new HashSet<>();
-
-        dfs(this, visited, recommendations, socialGraph);
-        postProcessRecommendations(recommendations, socialGraph);
-
-        return recommendations;
-    }
-
-    private void dfs(User user, Set<User> visited, List<String> recommendations, SocialNetworkGraph socialGraph) {
-        visited.add(user);
-
-        for (User followingUser : socialGraph.getConnections(user)) {
-            if (!visited.contains(followingUser)) {
-                recommendations.addAll(followingUser.getPosts());
-                dfs(followingUser, visited, recommendations, socialGraph);
-            }
-        }
-    }
-
-    private void postProcessRecommendations(List<String> recommendations, SocialNetworkGraph socialGraph) {
-        Collections.sort(recommendations, Comparator.comparingInt(socialGraph::getPostPopularity).reversed());
-        Set<String> uniqueRecommendations = new LinkedHashSet<>(recommendations);
-        recommendations.clear();
-        recommendations.addAll(uniqueRecommendations);
-    }
-
-    private int getPostLikes(String post) {
-        return postLikes.getOrDefault(post, 0);
-    }
-}
-
 class SocialNetworkGraph {
+    private static final String JDBC_URL = "jdbc:mysql://localhost:3306/socialMedia";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "misheel123";
     private Map<User, Set<User>> adjacencyList;
 
     public SocialNetworkGraph() {
@@ -90,7 +27,6 @@ class SocialNetworkGraph {
         return adjacencyList.get(user);
     }
 
-    // Get the popularity of a post (number of total likes)
     public int getPostPopularity(String post) {
         int totalLikes = 0;
         for (User user : adjacencyList.keySet()) {
@@ -99,10 +35,62 @@ class SocialNetworkGraph {
         return totalLikes;
     }
 
-    // Get the number of followers for a user
-    public int getUserFollowers(User user) {
-        return user.getFollowing().size();
+    public void storePostInDatabase(String username, String content, String photoType) {
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement statement = connection.prepareStatement("INSERT INTO posts (username, content, photo_path) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+            statement.setString(1, username);
+            statement.setString(2, content);
+            statement.setString(3, photoType);
+            statement.executeUpdate();
+
+            ResultSet generatedKeys = statement.getGeneratedKeys();
+            if (generatedKeys.next()) {
+                int postId = generatedKeys.getInt(1);
+                User user = getUser(username);
+                if (user != null) {
+                    user.addPost(content);
+                    user.getPostLikes().put(content, 0);
+                    SocialNetworkGraph.addPostToUser(user, postId);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
+
+    private static void addPostToUser(User user, int postId) {
+        user.addPost("New Photo with ID: " + postId);
+        user.getPostLikes().put("New Photo with ID: " + postId, 0);
+
+    }
+
+    private User getUser(String username) {
+        return null;
+    }
+
+    public List<String> recommendContent(User loggedInUser) {
+        throw new UnsupportedOperationException("Unimplemented method 'recommendContent'");
+
+    }
+
+    public List<String> retrievePhotos(String username) {
+        List<String> photos = new ArrayList<>();
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             Statement statement = connection.createStatement()) {
+            ResultSet resultSet = statement.executeQuery("SELECT photo_path FROM posts");
+            while (resultSet.next()) {
+                String photoPath = resultSet.getString("photo_path");
+                if (photoPath != null) {
+                    photos.add(photoPath);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error retrieving photos. See console for details.");
+        }
+        return photos;
+    }
+
 }
 
 public class SocialGraph {
@@ -128,16 +116,9 @@ public class SocialGraph {
         user3.addPost("Post by Charlie 1");
         user4.addPost("Post by David 1");
 
-        user1.follow(user2);
-        user2.follow(user3);
-        user3.follow(user4);
 
         List<String> recommendations = user1.recommendContent(socialGraph);
 
-        System.out.println("Enhanced Recommendations for " + user1.username + ":");
-        for (String recommendation : recommendations) {
-            System.out.println("- " + recommendation);
-        }
     }
 
     public static void addPostToUser(User user, int postId) {

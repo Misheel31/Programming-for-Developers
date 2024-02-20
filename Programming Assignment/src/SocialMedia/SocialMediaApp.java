@@ -89,12 +89,12 @@ class SocialNetworkGraph {
         return user.getFollowing().size();
     }
 
-    public void storePostInDatabase(String username, String content, String photoPath) {
+    public void storePostInDatabase(String username, String content, String photopath) {
         try (Connection connection = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement statement = connection.prepareStatement("INSERT INTO posts (username, content, photo_path) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+            PreparedStatement statement = connection.prepareStatement("INSERT INTO posts (username, content, photo_path) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
             statement.setString(1, username);
             statement.setString(2, content);
-            statement.setString(3, photoPath);
+            statement.setString(3, photopath);
             statement.executeUpdate();
 
             ResultSet generatedKeys = statement.getGeneratedKeys();
@@ -113,9 +113,10 @@ class SocialNetworkGraph {
     }
 
     private static void addPostToUser(User user, int postId) {
-        throw new UnsupportedOperationException("Unimplemented method 'addPostToUser'");
+        user.addPost("New Photo with ID: " + postId);
+        user.getPostLikes().put("New Photo with ID: " + postId, 0);
     }
-
+    
     private User getUser(String username) {
         return null;
     }
@@ -145,29 +146,47 @@ class SocialNetworkGraph {
         }
         return -1;
     }
-
-    public List<String> retrieveOtherUsersPosts(String loggedInUsername) {
-
-        return new ArrayList<>();
-    }
-
+    
     public List<String> retrievePhotos() {
         List<String> photos = new ArrayList<>();
         try (Connection connection = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
              Statement statement = connection.createStatement()) {
             ResultSet resultSet = statement.executeQuery("SELECT photo_path FROM posts");
             while (resultSet.next()) {
-                photos.add(resultSet.getString("photo_path"));
+                String photoPath = resultSet.getString("photo_path");
+                if (photoPath != null) {
+                    photos.add(photoPath);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error retrieving photos. See console for details.");
+        }
+        return photos;
+    }
+    
+    public List<String> recommendContent(User loggedInUser) {
+        throw new UnsupportedOperationException("Unimplemented method 'recommendContent'");
+    }
+
+    static UserProfile retrieveUserProfile(String loggedInUsername) {
+        return retrieveUserProfileFromDatabase(loggedInUsername);
+    }
+
+    private static UserProfile retrieveUserProfileFromDatabase(String loggedInUsername) {
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASSWORD);
+             PreparedStatement statement = connection.prepareStatement("SELECT * FROM user_profile WHERE username = ?")) {
+            statement.setString(1, loggedInUsername);
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                String username = resultSet.getString("username");
+                String photoPath = resultSet.getString("photo_path");
+                return new UserProfile();
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return photos;
-    }
-
-    public List<String> recommendContent(User loggedInUser) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'recommendContent'");
+        return null;
     }
 }
 
@@ -232,7 +251,7 @@ public class SocialMediaApp extends JFrame {
             statement.setString(1, username);
             statement.setString(2, password);
             statement.executeUpdate();
-
+    
             User newUser = new User(username);
             users.put(username, newUser);
             socialGraph.addUser(newUser);
@@ -240,7 +259,7 @@ public class SocialMediaApp extends JFrame {
             ex.printStackTrace();
         }
     }
-
+    
     private void showHomePage() {
         JFrame homePage = new JFrame("Home Page");
         homePage.setSize(800, 600);
@@ -254,64 +273,80 @@ public class SocialMediaApp extends JFrame {
         homePanel.add(logoutButton, BorderLayout.SOUTH);
     
         JButton uploadButton = new JButton("Upload Photo");
-        JButton viewPhotosButton = new JButton("View Photos");
+        JPanel userPanel = new JPanel(new BorderLayout());
+        JButton viewProfileButton = new JButton("View Profile");
     
         // Add JLabel to display uploaded photo
         JLabel uploadedPhotoLabel = new JLabel();
-        uploadedPhotoLabel.setPreferredSize(new Dimension(200, 200)); // Set your preferred width and height
+        uploadedPhotoLabel.setPreferredSize(new Dimension(100, 50));
         homePanel.add(uploadedPhotoLabel, BorderLayout.CENTER);
-
+    
         JLabel recommendationsLabel = new JLabel("Recommendations:");
         JTextArea recommendationsTextArea = new JTextArea();
-        recommendationsTextArea.setEditable(false); 
+        recommendationsTextArea.setEditable(false);
         JScrollPane recommendationsScrollPane = new JScrollPane(recommendationsTextArea);
-
+    
         homePanel.add(recommendationsLabel, BorderLayout.WEST);
         homePanel.add(recommendationsScrollPane, BorderLayout.EAST);
-
-
+    
+        // Add the viewProfileButton to the homePanel
+        homePanel.add(viewProfileButton, BorderLayout.WEST);
+    
         uploadButton.addActionListener(new ActionListener() {
-        @Override
-            public void actionPerformed(ActionEvent e) {
-            JFileChooser fileChooser = new JFileChooser();
-            int option = fileChooser.showOpenDialog(null);
-            if (option == JFileChooser.APPROVE_OPTION) {
-                File selectedFile = fileChooser.getSelectedFile();
-                String photoPath = selectedFile.getAbsolutePath();
-                socialGraph.storePostInDatabase(loggedInUsername, "New Photo", photoPath);
-                // Update the displayed photo
-                ImageIcon imageIcon = new ImageIcon(photoPath);
-                // Resize the image to preferred size
-                Image scaledImage = imageIcon.getImage().getScaledInstance(uploadedPhotoLabel.getWidth(), uploadedPhotoLabel.getHeight(), Image.SCALE_SMOOTH);
-                ImageIcon scaledIcon = new ImageIcon(scaledImage);
-                uploadedPhotoLabel.setIcon(scaledIcon);
-                JOptionPane.showMessageDialog(null, "Photo uploaded successfully!");
-
-                User loggedInUser = users.get(loggedInUsername);
-                List<String> recommendations = socialGraph.recommendContent(loggedInUser);
-
-                // Display recommendations in JTextArea
-                StringBuilder recommendationsText = new StringBuilder();
-                for (String recommendation : recommendations) {
-                    recommendationsText.append("- ").append(recommendation).append("\n");
-                }
-                recommendationsTextArea.setText(recommendationsText.toString());
-            }
-        }
-    });
-        
-        viewPhotosButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                List<String> photos = socialGraph.retrievePhotos();
-                StringBuilder message = new StringBuilder("Available Photos:\n");
-                for (String photo : photos) {
-                    message.append(photo).append("\n");
+                JFileChooser fileChooser = new JFileChooser();
+                int option = fileChooser.showOpenDialog(null);
+                if (option == JFileChooser.APPROVE_OPTION) {
+                    File selectedFile = fileChooser.getSelectedFile();
+                    String photoPath = selectedFile.getAbsolutePath();
+                    // socialGraph.storePostInDatabase(loggedInUsername, "New Photo", photoPath);
+                    // Update the displayed photo
+                    ImageIcon imageIcon = new ImageIcon(photoPath);
+                    Image scaledImage = imageIcon.getImage().getScaledInstance(uploadedPhotoLabel.getWidth(), uploadedPhotoLabel.getHeight(), Image.SCALE_SMOOTH);
+                    ImageIcon scaledIcon = new ImageIcon(scaledImage);
+                    uploadedPhotoLabel.setIcon(scaledIcon);
+                    JOptionPane.showMessageDialog(null, "Photo uploaded successfully!");
+    
+                    User loggedInUser = users.get(loggedInUsername);
+                    List<String> recommendations = socialGraph.recommendContent(loggedInUser);
+    
+                    StringBuilder recommendationsText = new StringBuilder();
+                    for (String recommendation : recommendations) {
+                        recommendationsText.append("- ").append(recommendation).append("\n");
+                    }
+                    recommendationsTextArea.setText(recommendationsText.toString());
                 }
-                JOptionPane.showMessageDialog(null, message.toString());
             }
         });
     
+        // Replace this part in the viewProfileButton ActionListener
+        viewProfileButton.addActionListener(e -> {
+            JFrame profileFrame = new JFrame("Profile Page");
+            profileFrame.setSize(600, 300);
+            profileFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+            JPanel profilePanel = new JPanel(new BorderLayout());
+            JLabel profileLabel = new JLabel("Profile Page for " + loggedInUsername);
+        
+            // Add JLabel to display uploaded photo in profile
+            JLabel profilePhotoLabel = new JLabel();
+            profilePhotoLabel.setPreferredSize(new Dimension(100, 50));
+        
+            // Load and set the profile photo if available
+            UserProfile userProfile = SocialNetworkGraph.retrieveUserProfile(loggedInUsername);
+            if (userProfile != null) {
+                ImageIcon profileImageIcon = new ImageIcon(userProfile.getPhotoPath());
+                Image profileImage = profileImageIcon.getImage().getScaledInstance(
+                        profilePhotoLabel.getWidth(), profilePhotoLabel.getHeight(), Image.SCALE_SMOOTH);
+                ImageIcon scaledProfileIcon = new ImageIcon(profileImage);
+                profilePhotoLabel.setIcon(scaledProfileIcon);
+            }
+        
+            profileFrame.add(profilePanel);
+            profileFrame.setVisible(true);
+        });
+        
         logoutButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -321,12 +356,14 @@ public class SocialMediaApp extends JFrame {
             }
         });
     
-        homePanel.add(uploadButton, BorderLayout.WEST);
-        homePanel.add(viewPhotosButton, BorderLayout.EAST);
+        homePanel.add(uploadButton, BorderLayout.EAST);
+        homePanel.add(userPanel, BorderLayout.NORTH);
     
         homePage.add(homePanel);
+        homePage.setLocationRelativeTo(null);
         homePage.setVisible(true);
     }
+
 
     private void showLoginPage() {
         getContentPane().removeAll();

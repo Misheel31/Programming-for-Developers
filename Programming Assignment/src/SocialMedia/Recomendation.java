@@ -75,10 +75,10 @@ class SocialNetworkGraph {
 public class Recomendation {
     public static void main(String[] args) {
         // Creating users
-        User user1 = new User("Alice");
-        User user2 = new User("Bob");
-        User user3 = new User("Charlie");
-        User user4 = new User("David");
+        User user1 = new User("misheel");
+        User user2 = new User("daniel");
+        User user3 = new User("hello");
+        User user4 = new User("hello1");
 
         SocialNetworkGraph socialGraph = new SocialNetworkGraph();
 
@@ -94,10 +94,10 @@ public class Recomendation {
         socialGraph.addConnection(user2, user4);
 
         // Creating posts
-        user1.addPost("Post by Alice 1");
-        user2.addPost("Post by Bob 1");
-        user3.addPost("Post by Charlie 1");
-        user4.addPost("Post by David 1");
+        user1.addPost("Post by misheel1");
+        user2.addPost("Post by daniel1");
+        user3.addPost("Post by hello1");
+        user4.addPost("Post by hello11");
 
         // User interactions
         user1.follow(user2);

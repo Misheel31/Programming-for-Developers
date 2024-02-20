@@ -14,8 +14,13 @@ public class ImageDownloader extends JFrame {
 
     private List<JTextField> urlFields;
     private JButton downloadButton;
+    private JButton pauseButton;
+    private JButton resumeButton;
     private JTextArea logArea;
     private ExecutorService executor;
+
+    // Shared flag for pausing and resuming downloads
+    private volatile boolean paused;
 
     public ImageDownloader() {
         setTitle("Multithreaded Image Downloader");
@@ -25,6 +30,8 @@ public class ImageDownloader extends JFrame {
 
         urlFields = new ArrayList<>();
         downloadButton = new JButton("Download");
+        pauseButton = new JButton("Pause");
+        resumeButton = new JButton("Resume");
         logArea = new JTextArea();
         logArea.setEditable(false);
 
@@ -33,9 +40,9 @@ public class ImageDownloader extends JFrame {
         inputPanel.add(new JLabel("Enter URLs "), BorderLayout.NORTH);
 
         // Initial text fields
-        JPanel urlFieldsPanel = new JPanel(new GridLayout(3, 1)); 
+        JPanel urlFieldsPanel = new JPanel(new GridLayout(3, 1));
 
-        for (int i = 0; i < 3; i++) { 
+        for (int i = 0; i < 3; i++) {
             JTextField textField = new JTextField();
             urlFields.add(textField);
             urlFieldsPanel.add(textField);
@@ -44,19 +51,42 @@ public class ImageDownloader extends JFrame {
         inputPanel.add(urlFieldsPanel, BorderLayout.CENTER);
         inputPanel.add(downloadButton, BorderLayout.SOUTH);
 
-        JScrollPane scrollPane = new JScrollPane(logArea);
+        // Add pause and resume buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.add(pauseButton);
+        buttonPanel.add(resumeButton);
 
         add(inputPanel, BorderLayout.NORTH);
+        add(buttonPanel, BorderLayout.SOUTH);
+
+        JScrollPane scrollPane = new JScrollPane(logArea);
+
         add(scrollPane, BorderLayout.CENTER);
 
-        // Initialize thread pool with fixed number of threads
+        // Initialize thread pool with a fixed number of threads
         executor = Executors.newFixedThreadPool(3);
 
-        // Add action listener to the download button
+        // Add action listeners to the buttons
         downloadButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 downloadImagesAsync();
+            }
+        });
+
+        pauseButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                paused = true;
+                log("Downloads paused");
+            }
+        });
+
+        resumeButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                paused = false;
+                log("Downloads resumed");
             }
         });
     }
@@ -77,6 +107,7 @@ public class ImageDownloader extends JFrame {
     private class ImageDownloaderTask implements Runnable {
 
         private String imageUrl;
+        private static final int BUFFER_SIZE = 1024;
 
         public ImageDownloaderTask(String imageUrl) {
             this.imageUrl = imageUrl;
@@ -85,28 +116,35 @@ public class ImageDownloader extends JFrame {
         @Override
         public void run() {
             try {
-                @SuppressWarnings("deprecation")
                 URL url = new URL(imageUrl);
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
                 int responseCode = connection.getResponseCode();
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     InputStream inputStream = connection.getInputStream();
+                    int totalSize = connection.getContentLength();
+                    int downloadedSize = 0;
 
                     // Extract filename from URL
                     String fileName = imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
                     File outputFile = new File(fileName);
-                    FileOutputStream outputStream = new FileOutputStream(outputFile);
+                    RandomAccessFile randomAccessFile = new RandomAccessFile(outputFile, "rw");
 
-                    byte[] buffer = new byte[1024];
-                    int bytesRead;
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
+                    while (downloadedSize < totalSize) {
+                        if (paused) {
+                            log("Download paused: " + fileName);
+                            return;
+                        }
+                        byte[] buffer = new byte[BUFFER_SIZE];
+                        int bytesRead = inputStream.read(buffer);
+                        if (bytesRead == -1) {
+                            break;
+                        }
+
+                        randomAccessFile.write(buffer, 0, bytesRead);
+                        downloadedSize += bytesRead;
+                        log("Downloaded: " + fileName + " (" + downloadedSize + "/" + totalSize + ")");
                     }
-
-                    inputStream.close();
-                    outputStream.close();
-                    log("Downloaded: " + fileName);
                 } else {
                     log("Error downloading image from " + imageUrl + ": HTTP error code " + responseCode);
                 }

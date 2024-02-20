@@ -1,47 +1,54 @@
-import java.util.*;
-
+ import java.util.*;
+ 
 public class NetworkDevice {
-    public static List<Integer> impactedDevices(int[][] edges, int target) {
-        List<List<Integer>> graph = buildGraph(edges);
-        List<Integer> visited = new ArrayList<>();
-        List<Integer> impacted = new ArrayList<>();
-        dfs(graph, target, visited, impacted, target);
-        return impacted;
+ 
+    public static List<Integer> findNodesWithOnlyTargetAsParent(int[][] edges, int target) {
+        Map<Integer, List<Integer>> graph = new HashMap<>();
+        Map<Integer, Integer> inDegree = new HashMap<>();
+ 
+        // Building the graph and calculate in-degree of each node
+        for (int[] edge : edges) {
+            int from = edge[0];
+            int to = edge[1];
+            graph.putIfAbsent(from, new ArrayList<>());
+            graph.get(from).add(to);
+            inDegree.put(to, inDegree.getOrDefault(to, 0) + 1);
+        }
+ 
+        // Perform DFS starting from the target node
+        List<Integer> result = new ArrayList<>();
+        dfs(graph, inDegree, target, target, result);
+ 
+        return result;
     }
-
-    private static List<List<Integer>> buildGraph(int[][] edges) {
-        List<List<Integer>> graph = new ArrayList<>();
-        for (int i = 0; i < edges.length; i++) {
-            int src = edges[i][0];
-            int dest = edges[i][1];
-            while (graph.size() <= src || graph.size() <= dest) {
-                graph.add(new ArrayList<>());
+ 
+    private static void dfs(Map<Integer, List<Integer>> graph, Map<Integer, Integer> inDegree, int node, int target,
+            List<Integer> result) {
+        // If the current node has no incoming edges other than from the target node,
+        if (inDegree.getOrDefault(node, 0) == 1 && node != target) {
+            result.add(node);
+        }
+        // Recursively exploring the children of the current node
+        if (graph.containsKey(node)) {
+            for (int child : graph.get(node)) {
+                dfs(graph, inDegree, child, target, result);
             }
-            graph.get(src).add(dest);
-            graph.get(dest).add(src);
         }
-        return graph;
     }
-
-    private static void dfs(List<List<Integer>> graph, int src, List<Integer> visited, List<Integer> impacted, int target) {
-        if (visited.contains(src)) {
-            return;
-        }
-        visited.add(src);
-    
-        for (int neighbor : graph.get(src)) {
-            dfs(graph, neighbor, visited, impacted, target);
-        }
-        if (src == target) {
-            impacted.add(src);
-        }
-        
-    }
-
+ 
     public static void main(String[] args) {
-        int[][] edges = {{0, 1}, {0, 2}, {1, 3}, {1, 6}, {2, 4}, {4, 6}, {4, 5}, {5, 7}};
+        int[][] edges = { { 0, 1 }, { 0, 2 }, { 1, 3 }, { 1, 6 }, { 2, 4 }, { 4, 6 }, { 4, 5 }, { 5, 7 } };
         int target = 4;
-        List<Integer> result = impactedDevices(edges, target);
-        System.out.println("Impacted device: " + result);
+ 
+        List<Integer> uniqueParents = findNodesWithOnlyTargetAsParent(edges, target);
+ 
+        System.out.print("Nodes whose only parent is " + target + ": {");
+        for (int i = 0; i < uniqueParents.size(); i++) {
+            System.out.print(uniqueParents.get(i));
+            if (i < uniqueParents.size() - 1) {
+                System.out.print(", ");
+            }
+        }
+        System.out.println("}");
     }
 }
